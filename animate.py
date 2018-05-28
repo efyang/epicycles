@@ -15,17 +15,21 @@ def circle(x, y, r):
     yp = r * np.sin(ang)
     return ax.plot(x+xp, y+yp, 'b', linewidth=0.5)
 
+
 def set_circle(h, x, y, r):
     ang = np.arange(0, 2*np.pi, 0.01)
     xp = r * np.cos(ang)
     yp = r * np.sin(ang)
     h.set_data(x+xp, y+yp)
 
+
 def line(x1, y1, x2, y2):
     return ax.plot(np.array([x1, x2]), np.array([y1, y2]), 'k', linewidth=0.5)
 
+
 def set_line(h, x1, y1, x2, y2):
     h.set_data(np.array([x1, x2]), np.array([y1, y2]))
+
 
 # x = np.arange(0, 2*np.pi, 0.01)
 # theta = np.arange(-2*np.pi, 2*np.pi, 0.01)
@@ -62,6 +66,10 @@ fraw = np.delete(fraw, zerofreqind)
 radii_del = np.delete(radii, zerofreqind)
 radii_sort_order = radii_del.argsort()[::-1]
 f = fraw[radii_sort_order]
+
+# only keep the most important frequencies
+modes = 40
+f = f[:modes]
 
 circles = []
 lines = []
