@@ -5,15 +5,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+import argparse
+parser = argparse.ArgumentParser(description='Image epicycle fit')
+parser.add_argument('input_file', metavar='file', help='input file')
+args = parser.parse_args()
+
+
 fig, ax = plt.subplots()
-ax.set_xlim([-20, 20])
-ax.set_ylim([-20, 20])
+ax.set_xlim([0, 2000])
+ax.set_ylim([0, 1000])
+ax.set_title("Epicycle approximation of image")
 
 def circle(x, y, r):
     ang = np.arange(0, 2*np.pi, 0.01)
     xp = r * np.cos(ang)
     yp = r * np.sin(ang)
-    return ax.plot(x+xp, y+yp, 'b', linewidth=0.5)
+    return ax.plot(x+xp, y+yp, 'orange', linewidth=0.5)
 
 
 def set_circle(h, x, y, r):
@@ -24,7 +31,7 @@ def set_circle(h, x, y, r):
 
 
 def line(x1, y1, x2, y2):
-    return ax.plot(np.array([x1, x2]), np.array([y1, y2]), 'k', linewidth=0.5)
+    return ax.plot(np.array([x1, x2]), np.array([y1, y2]), 'orange', linewidth=0.5)
 
 
 def set_line(h, x1, y1, x2, y2):
@@ -35,18 +42,26 @@ def set_line(h, x1, y1, x2, y2):
 # theta = np.arange(-2*np.pi, 2*np.pi, 0.01)
 # x = theta + 1j * np.sin(theta)
 # x = 2*np.array([-2+2*1j, -1+2*1j, 2*1j, 1+2*1j, 2+2*1j, 2+1j, 2, 2-1j, 2-2*1j, 1-2*1j, -2*1j, -1-2*1j, -2-2*1j, -2-1j, -2, -2+1j, -2+2*1j]);
-xm = np.array([-15+4j, -13+4j, -12.5+1j, -11.5+3j, -9.5+3j, -8.5+1j, -8+4j, -6+4j,
-              -4+4j, -3+2j, -2+4j, 0+4j,
-              2+4j, 4+1j, 6+4j, 8+4j, 14+4j, 14+2j, 12+2j, 12-2j, 10-2j, 10+2j, 8+2j,
-              8-2j, 6-2j, 6+1j, 5-1j, 3-1j, 2+1j, 2-2j, 0-2j, 0+4j,
-              -2+1j, -2-2j, -4-2j, -4+1j, -6+4j,
-              -7-2j, -9-2j, -10.5+1j, -12-2j, -14-2j, -15+4j]) + 10j
+# xm = np.array([-15+4j, -13+4j, -12.5+1j, -11.5+3j, -9.5+3j, -8.5+1j, -8+4j, -6+4j,
+              # -4+4j, -3+2j, -2+4j, 0+4j,
+              # 2+4j, 4+1j, 6+4j, 8+4j, 14+4j, 14+2j, 12+2j, 12-2j, 10-2j, 10+2j, 8+2j,
+              # 8-2j, 6-2j, 6+1j, 5-1j, 3-1j, 2+1j, 2-2j, 0-2j, 0+4j,
+              # -2+1j, -2-2j, -4-2j, -4+1j, -6+4j,
+              # -7-2j, -9-2j, -10.5+1j, -12-2j, -14-2j, -15+4j]) + 10j
 # interpolate to make it smoother
-xk = np.arange(0, len(xm))
-xq = np.arange(0, len(xm), 0.5)
-x = np.interp(xq, xk, xm)
+# xk = np.arange(0, len(xm))
+# xq = np.arange(0, len(xm), 0.5)
+# x = np.interp(xq, xk, xm)
+
+import procimg
+
+x = procimg.process(args.input_file)
+# we want to reduce to around 1000 sample points so that we can fft them in
+# reasonable time
+x = x[::(len(x)//1000)]
+print("using sample of", len(x), "points")
 # x = np.arange(-5, 5, 0.5) + 1j*np.arange(-5,5, 0.5)
-ax.plot(x.real, x.imag, 'g')
+ax.plot(x.real, x.imag, 'g', linewidth=0.4)
 y = np.fft.fftshift(np.fft.fft(x))
 n = len(y)
 radii = np.abs(y) / n
@@ -68,7 +83,7 @@ radii_sort_order = radii_del.argsort()[::-1]
 f = fraw[radii_sort_order]
 
 # only keep the most important frequencies
-modes = 40
+modes = 60
 f = f[:modes]
 
 circles = []
@@ -80,11 +95,12 @@ for i in np.arange(0, n):
     lines.append(m)
 
 
-tracing, = ax.plot(points.real, points.imag, 'r')
+tracing, = ax.plot(points.real, points.imag, 'r', linewidth=2)
 finished_period = False
 finished_updating = False
 
 def animate(t):
+    print('\r' + str(100 * t/P) + "%   ", end='')
     global points, finished_period, finished_updating
     curpt = center
     artists = []
@@ -115,13 +131,15 @@ def animate(t):
 def init():
     tracing.set_ydata(np.ma.array(points.real, mask=True))
     return tracing,
+
+
 # demo show
 ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
                               interval=25, blit=True)
 # for saved animation
 # ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
                               # interval=25, blit=True, repeat=False)
-# ani.save('test.mp4', writer='ffmpeg', fps=30)
+# ani.save('output.mp4', writer='ffmpeg', fps=30)
 
 
 plt.show()
