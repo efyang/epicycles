@@ -1,20 +1,33 @@
-"""
-A simple example of an animated plot
-"""
+from skimage import io, color
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 import argparse
 parser = argparse.ArgumentParser(description='Image epicycle fit')
-parser.add_argument('input_file', metavar='file', help='input file')
+parser.add_argument('input_file', metavar='input_file', help='input file')
+parser.add_argument('output_file', metavar='output_file', help='output file')
 args = parser.parse_args()
 
+import procimg
+imageorig = io.imread(args.input_file)
 
-fig, ax = plt.subplots()
-ax.set_xlim([0, 2000])
-ax.set_ylim([0, 1000])
-ax.set_title("Epicycle approximation of image")
+fig_width_in = 10
+image = color.rgb2gray(imageorig)
+height,width = np.shape(image)
+fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(fig_width_in, fig_width_in*(height/width + 0.1)))
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+axes[0, 0].imshow(imageorig)
+ax = axes[1, 1]
+ax.set_xlim([0, width])
+ax.set_ylim([0, height])
+axes[1, 0].set_xlim([0, width])
+axes[1, 0].set_ylim([0, height])
+ax.set_title("Epicycle Approximation of Image")
+axes[0, 0].set_title("Original Image")
+axes[0, 1].set_title("Binarized, Thresholded Version of Image")
+axes[1, 0].set_title("Connected Contours of Image")
+plt.suptitle("KAM Project: Approximating Images with Epicycles using the Fourier Transform")
 
 def circle(x, y, r):
     ang = np.arange(0, 2*np.pi, 0.01)
@@ -53,9 +66,7 @@ def set_line(h, x1, y1, x2, y2):
 # xq = np.arange(0, len(xm), 0.5)
 # x = np.interp(xq, xk, xm)
 
-import procimg
-
-x = procimg.process(args.input_file)
+x = procimg.process(image, axes[0, 1], axes[1, 0])
 # we want to reduce to around 1000 sample points so that we can fft them in
 # reasonable time
 x = x[::(len(x)//1000)]
@@ -67,7 +78,7 @@ n = len(y)
 radii = np.abs(y) / n
 phase_angles = np.arctan2(y.imag, y.real)
 points = np.array([])
-P = 500
+P = 1000
 
 # delete the 0 frequency circle (the offset)
 import math
@@ -83,7 +94,8 @@ radii_sort_order = radii_del.argsort()[::-1]
 f = fraw[radii_sort_order]
 
 # only keep the most important frequencies
-modes = 60
+modes = 200
+print("Approximating with", modes, "modes")
 f = f[:modes]
 
 circles = []
@@ -134,12 +146,12 @@ def init():
 
 
 # demo show
-ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
-                              interval=25, blit=True)
-# for saved animation
 # ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
-                              # interval=25, blit=True, repeat=False)
-# ani.save('output.mp4', writer='ffmpeg', fps=30)
+                              # interval=25, blit=True)
+# for saved animation
+ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
+                              interval=25, blit=True, repeat=False)
+ani.save(args.output_file, writer='ffmpeg', fps=30)
 
 
 plt.show()

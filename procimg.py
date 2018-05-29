@@ -1,21 +1,19 @@
-from skimage import io, measure, filters, color
+from skimage import measure, filters
 import numpy as np
-
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 # plt.ion()
 # def draw():
     # plt.draw()
     # plt.pause(0.001)
 
 
-def process(filename):
+# image should be in grayscale already
+def process(image, bin_ax, connect_ax):
     # fig, ax = plt.subplots()
-    image = io.imread(filename)
-    image = color.rgb2gray(image)
     thresh = filters.threshold_mean(image)
     binary = image > thresh
     height = np.size(image, 0)
-    # ax.imshow(binary, cmap=plt.cm.gray)
+    bin_ax.imshow(binary, cmap=plt.cm.gray)
     # draw()
 
     print("find contours...")
@@ -133,7 +131,7 @@ def process(filename):
                                             np.flipud(combined_points[(contour_min+1):(p2+1)]),
                                             np.flipud(combined_points[p3:contour_max])))
     # plt.cla()
-    # ax.plot(final_ordering.real, final_ordering.imag)
+    connect_ax.plot(final_ordering.real, final_ordering.imag)
     print("done.")
 
     # plt.draw()
