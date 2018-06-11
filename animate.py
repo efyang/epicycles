@@ -6,34 +6,54 @@ import matplotlib.animation as animation
 import argparse
 parser = argparse.ArgumentParser(description='Image epicycle fit')
 parser.add_argument('input_file', metavar='input_file', help='input file')
-parser.add_argument('output_file', metavar='output_file', help='output file')
+parser.add_argument('modes', metavar='modes', type=int, help='number of modes to approximate with')
+parser.add_argument('output_video_file', metavar='output_video_file', help='output video file')
+parser.add_argument('output_equation_file', metavar='output_equation_file', help='output text file for equation')
+parser.add_argument('-q', action='store_true')
+parser.add_argument('-r', action='store_true')
 args = parser.parse_args()
 
 import procimg
 imageorig = io.imread(args.input_file)
 
+quadruple_layout = args.q
+
 fig_width_in = 10
 image = color.rgb2gray(imageorig)
 height,width = np.shape(image)
-fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(fig_width_in, fig_width_in*(height/width + 0.1)))
-plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-axes[0, 0].imshow(imageorig)
-ax = axes[1, 1]
-ax.set_xlim([0, width])
-ax.set_ylim([0, height])
-axes[1, 0].set_xlim([0, width])
-axes[1, 0].set_ylim([0, height])
-ax.set_title("Epicycle Approximation of Image")
-axes[0, 0].set_title("Original Image")
-axes[0, 1].set_title("Binarized, Thresholded Version of Image")
-axes[1, 0].set_title("Connected Contours of Image")
-plt.suptitle("KAM Project: Approximating Images with Epicycles using the Fourier Transform")
+
+if quadruple_layout:
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(fig_width_in, fig_width_in*(height/width + 0.1)))
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    axes[0, 0].imshow(imageorig)
+    ax = axes[1, 1]
+    ax.set_xlim([0, width])
+    ax.set_ylim([0, height])
+    axes[1, 0].set_xlim([0, width])
+    axes[1, 0].set_ylim([0, height])
+    ax.set_title("Epicycle Approximation of Image with " + str(args.modes) + " Modes")
+    axes[0, 0].set_title("Original Image")
+    axes[0, 1].set_title("Binarized, Thresholded Version of Image")
+    axes[1, 0].set_title("Connected Contours of Image")
+    plt.suptitle("KAM Project: Approximating Images with Epicycles using the Fourier Transform")
+else:
+    fig, axes = plt.subplots(figsize=(fig_width_in, fig_width_in*(height/width + 0.1)))
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    ax = axes
+    ax.set_xlim([0, width])
+    ax.set_ylim([0, height])
+    ax.set_title("Epicycle Approximation of Image with " + str(args.modes) + " Modes")
+    plt.suptitle("KAM Project: Approximating Images with Epicycles using the Fourier Transform")
+
+
+epicycle_color = 'black'
+epicycle_linewidth = 0.3
 
 def circle(x, y, r):
     ang = np.arange(0, 2*np.pi, 0.01)
     xp = r * np.cos(ang)
     yp = r * np.sin(ang)
-    return ax.plot(x+xp, y+yp, 'orange', linewidth=0.5)
+    return ax.plot(x+xp, y+yp, epicycle_color, linewidth=epicycle_linewidth)
 
 
 def set_circle(h, x, y, r):
@@ -43,8 +63,14 @@ def set_circle(h, x, y, r):
     h.set_data(x+xp, y+yp)
 
 
+def im_line(xs):
+    return ax.plot(xs.real, xs.imag, epicycle_color, linewidth=epicycle_linewidth)
+
+def set_im_line(h, xs):
+    h.set_data(xs.real, xs.imag)
+
 def line(x1, y1, x2, y2):
-    return ax.plot(np.array([x1, x2]), np.array([y1, y2]), 'orange', linewidth=0.5)
+    return ax.plot(np.array([x1, x2]), np.array([y1, y2]), epicycle_color, linewidth=epicycle_linewidth)
 
 
 def set_line(h, x1, y1, x2, y2):
@@ -66,7 +92,10 @@ def set_line(h, x1, y1, x2, y2):
 # xq = np.arange(0, len(xm), 0.5)
 # x = np.interp(xq, xk, xm)
 
-x = procimg.process(image, axes[0, 1], axes[1, 0])
+if quadruple_layout:
+    x = procimg.process(image, axes[0, 1], axes[1, 0])
+else:
+    x = procimg.process_no_axes(image)
 # we want to reduce to around 1000 sample points so that we can fft them in
 # reasonable time
 x = x[::(len(x)//1000)]
@@ -80,9 +109,29 @@ phase_angles = np.arctan2(y.imag, y.real)
 points = np.array([])
 P = 1000
 
-# delete the 0 frequency circle (the offset)
 import math
 zerofreqind = math.ceil(n/2) + (n+1)%2 - 1
+
+print("generating equations...")
+x_eq_string = "x(t) = "
+y_eq_string = "y(t) = "
+for i in range(n):
+    f = i - zerofreqind
+    internal = str(2*f) + "πt + " + str(phase_angles[i])
+    x_eq_string += str(radii[i]) + "cos(" + internal + ")"
+    y_eq_string += str(radii[i]) + "sin(" + internal + ")"
+    if i < n - 1:
+        x_eq_string += " + "
+        y_eq_string += " + "
+
+f = open(args.output_equation_file, 'w')
+f.write(x_eq_string + "\n\n" + y_eq_string)
+f.close()
+print("done.")
+# print(x_eq_string)
+# print(y_eq_string)
+
+# delete the 0 frequency circle (the offset)
 center = y[zerofreqind] / n
 # radii = np.delete(radii, zerofreqind)
 # y = np.delete(y, zerofreqind)
@@ -94,17 +143,17 @@ radii_sort_order = radii_del.argsort()[::-1]
 f = fraw[radii_sort_order]
 
 # only keep the most important frequencies
-modes = 200
+modes = args.modes
+# modes = 200
 print("Approximating with", modes, "modes")
 f = f[:modes]
 
 circles = []
-lines = []
+line_points = np.array([center])
 for i in np.arange(0, n):
     c, = circle(0, 0, 0)
-    m, = line(0, 0, 0, 0)
+    lines, = im_line(line_points)
     circles.append(c)
-    lines.append(m)
 
 
 tracing, = ax.plot(points.real, points.imag, 'r', linewidth=2)
@@ -115,6 +164,7 @@ def animate(t):
     print('\r' + str(100 * t/P) + "%   ", end='')
     global points, finished_period, finished_updating
     curpt = center
+    line_points = np.array([center])
     artists = []
     for k in f:
         r = radii[k]
@@ -122,10 +172,11 @@ def animate(t):
         set_circle(circles[k], curpt.real, curpt.imag, r)
         offset = y[k]/n * np.exp(2*np.pi*1j * (k - zerofreqind) * (t/P))
         next_center = curpt + offset
-        set_line(lines[k], curpt.real, curpt.imag, next_center.real, next_center.imag)
+        line_points = np.append(line_points, next_center)
         curpt = next_center
 
-    artists.extend(lines)
+    set_im_line(lines, line_points)
+    artists.append(lines)
     artists.extend(circles)
     if not finished_updating:
         points = np.append(points, [curpt])
@@ -144,14 +195,15 @@ def init():
     tracing.set_ydata(np.ma.array(points.real, mask=True))
     return tracing,
 
-
 # demo show
-# ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
-                              # interval=25, blit=True)
+if not args.r:
+    ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
+                                interval=25, blit=True)
 # for saved animation
-ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
-                              interval=25, blit=True, repeat=False)
-ani.save(args.output_file, writer='ffmpeg', fps=30)
+else:
+    ani = animation.FuncAnimation(fig, animate, np.arange(0, P), init_func=init,
+                                interval=25, blit=True, repeat=False)
+    ani.save(args.output_video_file, writer='ffmpeg', fps=30)
 
 
 plt.show()
